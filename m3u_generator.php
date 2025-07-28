@@ -4,6 +4,9 @@ header('Content-Type: text/plain; charset=utf-8');
 // MOD her zaman aktif (Workers için optimize)
 $isMod = true;
 
+// Workers URL'sini environment'dan al veya varsayılanı kullan
+$workersBaseUrl = getenv('WORKERS_BASE_URL') ?: 'https://kablo-stream.koprulu.workers.dev';
+
 $url = "https://core-api.kablowebtv.com/api/channels";
 $headers = [
     "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
@@ -49,7 +52,7 @@ foreach ($data['Data']['AllChannels'] as $channel) {
     if ($isMod) {
         if (preg_match('/live_turksat_sub[0-9]*\/([^\/]+?)(?:_stream|$|\/)/', $channel['StreamData']['HlsStreamUrl'], $matches)) {
             $id = $matches[1];
-            echo "https://kablo-stream.koprulu.workers.dev/?id=" . urlencode($id) . "&extension=m3u8\n";
+            echo $workersBaseUrl . "/?id=" . urlencode($id) . "&extension=m3u8\n";
         } else {
             echo $channel['StreamData']['HlsStreamUrl'] . "\n";
         }
@@ -57,4 +60,7 @@ foreach ($data['Data']['AllChannels'] as $channel) {
         echo $channel['StreamData']['HlsStreamUrl'] . "\n";
     }
 }
+
+// Son güncelleme zamanını kaydet (dosyaya ekleme yaparak)
+@file_put_contents('last_update.log', date('Y-m-d H:i:s') . " - M3U list generated\n", FILE_APPEND);
 ?>
