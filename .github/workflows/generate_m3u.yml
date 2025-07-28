@@ -15,40 +15,51 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
-          python-version: '3.x'
+          php-version: '8.2'
+          extensions: curl
 
-      - name: Install dependencies
+      - name: Run M3U Generator (Force update on manual)
         run: |
-          python -m pip install --upgrade pip
-          pip install requests beautifulsoup4
+          # Always run generator on manual trigger
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manual trigger - forcing update"
+            php m3u_generator.php > playlist.m3u
+          else
+            # On schedule, run normally and check changes
+            php m3u_generator.php > new_playlist.m3u
+            if cmp -s "playlist.m3u" "new_playlist.m3u"; then
+              echo "No changes detected"
+              rm new_playlist.m3u
+            else
+              echo "Changes detected - updating playlist"
+              mv new_playlist.m3u playlist.m3u
+            fi
+          fi
 
-      - name: Run scraper
-        run: python scraper.py
-
-      - name: Create commit (always on manual, only changes on schedule)
+      - name: Create commit
         id: commit
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add .
           
-          # Always commit if manual trigger
+          # Always create commit on manual trigger
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            git commit -m "Manual update M3U list [skip ci]" || echo "No changes to commit (manual trigger)"
-            echo "Manual trigger - commit attempted"
+            git commit -m "Manual update M3U list [skip ci]" --allow-empty
             echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Manual trigger - empty commit created if no changes"
           else
-            # For scheduled runs, only commit if changes exist
+            # Only commit if changes exist on schedule
             if [ -z "$(git status --porcelain)" ]; then
-              echo "No changes detected (scheduled run)"
               echo "has_changes=false" >> $GITHUB_OUTPUT
+              echo "No changes detected (scheduled run)"
             else
               git commit -m "Auto-update M3U list [skip ci]"
-              echo "Changes detected and committed (scheduled run)"
               echo "has_changes=true" >> $GITHUB_OUTPUT
+              echo "Changes detected and committed (scheduled run)"
             fi
           fi
 
