@@ -28,21 +28,28 @@ jobs:
       - name: Run scraper
         run: python scraper.py
 
-      - name: Create commit if there are changes
+      - name: Create commit (always on manual, only changes on schedule)
         id: commit
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add .
           
-          # Check if there are changes to commit
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "No changes detected"
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-          else
-            git commit -m "Auto-update M3U list [skip ci]"
-            echo "Changes detected and committed"
+          # Always commit if manual trigger
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            git commit -m "Manual update M3U list [skip ci]" || echo "No changes to commit (manual trigger)"
+            echo "Manual trigger - commit attempted"
             echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            # For scheduled runs, only commit if changes exist
+            if [ -z "$(git status --porcelain)" ]; then
+              echo "No changes detected (scheduled run)"
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            else
+              git commit -m "Auto-update M3U list [skip ci]"
+              echo "Changes detected and committed (scheduled run)"
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Push changes
